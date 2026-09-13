@@ -1,0 +1,150 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: Arial, sans-serif;
+  background: #111;
+  color: white;
+}
+
+.navbar {
+  height: 70px;
+  background: #111;
+  display: flex;
+  align-items: center;
+  padding: 0 50px;
+  gap: 40px;
+}
+
+.logo {
+  color: #e50914;
+  font-size: 28px;
+  font-weight: bold;
+}
+
+.nav-links {
+  display: flex;
+  gap: 25px;
+  flex: 1;
+}
+
+.nav-links span {
+  cursor: pointer;
+}
+
+.search {
+  background: #222;
+  border: 1px solid #555;
+  color: white;
+  padding: 10px 15px;
+  border-radius: 5px;
+}
+
+.hero {
+  height: 620px;
+  display: flex;
+  align-items: center;
+  padding: 50px;
+  position: relative;
+  overflow: hidden;
+
+  background-image:
+    linear-gradient(
+      to right,
+      rgba(0, 0, 0, 0.95) 0%,
+      rgba(0, 0, 0, 0.75) 35%,
+      rgba(0, 0, 0, 0.25) 75%,
+      rgba(0, 0, 0, 0.9) 100%
+    ),
+    url("https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=2000&q=80");
+
+  background-size: cover;
+  background-position: center;
+}
+
+.hero-content {
+  max-width: 600px;
+  position: relative;
+  z-index: 2;
+}
+
+.hero-meta {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  color: #ddd;
+  font-size: 16px;
+  margin-bottom: 20px;
+}
+
+.hero-meta span:last-child {
+  color: #ffd700;
+}
+
+.featured {
+  color: #aaa;
+  font-size: 14px;
+  margin-bottom: 15px;
+}
+
+.hero h2 {
+  font-size: 55px;
+  margin-bottom: 20px;
+}
+
+.description {
+  color: #ddd;
+  line-height: 1.6;
+  margin-bottom: 25px;
+}
+
+.buttons {
+  display: flex;
+  gap: 15px;
+}
+
+.buttons button {
+  border: none;
+  padding: 12px 25px;
+  border-radius: 5px;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.play-btn {
+  background: white;
+  color: black;
+}
+
+.info-btn {
+  background: #555;
+  color: white;
+}
+
+.movie-section {
+  padding: 30px 50px;
+}
+
+.movie-section h2 {
+  margin-bottom: 20px;
+}
+
+.movie-row {
+  display: flex;
+  gap: 15px;
+  overflow-x: auto;
+}
+
+.movie-card {
+  min-width: 180px;
+  height: 260px;
+  background: #333;
+  border-radius: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #aaa;
+}
