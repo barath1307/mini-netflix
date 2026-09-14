@@ -125,11 +125,15 @@ useEffect(() => {
         ),
       ];
 
-      const responses = await Promise.all(requests);
+      const responses = await Promise.allSettled(requests);
 
       const data = await Promise.all(
-        responses.map((response) => response.json())
-      );
+  responses.map((response) =>
+    response.status === "fulfilled"
+      ? response.value.json()
+      : { results: [] }
+  )
+);
 
       const categories = [
         "Trending Now",
