@@ -99,6 +99,12 @@ useEffect(() => {
       setMyList([...myList, movie]);
     }
   };
+
+  const removeFromMyList = (movie) => {
+  setMyList(
+    myList.filter((item) => item.title !== movie.title)
+  );
+};
  useEffect(() => {
   const apiKey = import.meta.env.VITE_TMDB_API_KEY;
 
