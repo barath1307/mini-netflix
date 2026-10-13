@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import "./App.css";
 const TMDB_API_URL = "https://api.themoviedb.org/3";
 
@@ -24,6 +25,8 @@ const genreMap = {
 };
 
 function App() {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [search, setSearch] = useState("");
   const [selectedMovie, setSelectedMovie] = useState(null);
   const [movies, setMovies] = useState([]);
@@ -35,6 +38,7 @@ function App() {
   const [watchMovie, setWatchMovie] = useState(null);
   const [myList, setMyList] = useState([]);
   const [showMyList, setShowMyList] = useState(false);
+  const [heroIndex, setHeroIndex] = useState(0);
 
 useEffect(() => {
   if (!search.trim()) {
@@ -189,39 +193,77 @@ useEffect(() => {
 }, []);
 useEffect(() => {
   const fetchTVShows = async () => {
-     setLoading(true);
-     setError("");
+    setLoading(true);
+    setError("");
+
     try {
-      const response = await fetch(
-        `${TMDB_API_URL}/tv/popular?api_key=${import.meta.env.VITE_TMDB_API_KEY}`,
-        tmdbOptions
+      const apiKey = import.meta.env.VITE_TMDB_API_KEY;
+
+      // Fetch multiple pages so the TV Shows page contains several rows.
+      const pages = [1, 2, 3, 4];
+      const responses = await Promise.allSettled(
+        pages.map((page) =>
+          fetch(
+            `${TMDB_API_URL}/tv/popular?api_key=${apiKey}&page=${page}`,
+            tmdbOptions
+          )
+        )
       );
 
-      const data = await response.json();
+      const pageData = await Promise.all(
+        responses.map(async (result) => {
+          if (result.status !== "fulfilled" || !result.value.ok) {
+            return { results: [] };
+          }
+          return result.value.json();
+        })
+      );
 
-      const formattedShows = data.results.map((show) => ({
+      const allShows = pageData.flatMap((data) => data.results || []);
+      const uniqueShows = Array.from(
+        new Map(allShows.map((show) => [show.id, show])).values()
+      ).filter((show) => show.poster_path);
+
+      const formattedShows = uniqueShows.map((show) => ({
         id: show.id,
+        mediaType: "tv",
         title: show.name,
         year: show.first_air_date?.slice(0, 4) || "N/A",
         genre: "TV Show",
         rating: show.vote_average?.toFixed(1) || "N/A",
-        description: show.overview,
+        description: show.overview || "No description available.",
         image: show.poster_path
           ? `https://image.tmdb.org/t/p/w500${show.poster_path}`
+          : "",
+        backdrop: show.backdrop_path
+          ? `https://image.tmdb.org/t/p/original${show.backdrop_path}`
           : "",
       }));
 
       setTvShows(formattedShows);
-      setLoading(false);
     } catch (error) {
       console.error("TV Shows API Error:", error);
       setError("Unable to load TV Shows. Please try again.");
+    } finally {
       setLoading(false);
     }
   };
 
   fetchTVShows();
 }, []);
+
+// Automatically rotate the home hero through trending movies every 5 seconds.
+useEffect(() => {
+  const carouselMovies = movies.filter((movie) => movie.category === "Trending Now");
+  if (!carouselMovies.length) return;
+
+  setHeroMovie(carouselMovies[heroIndex % carouselMovies.length]);
+  const timer = window.setInterval(() => {
+    setHeroIndex((current) => (current + 1) % carouselMovies.length);
+  }, 5000);
+
+  return () => window.clearInterval(timer);
+}, [movies, heroIndex]);
 
   const isInMyList = (movie) => {
     return myList.some(
@@ -231,7 +273,7 @@ useEffect(() => {
 const playMovie = async (movie) => {
   try {
     const response = await fetch(
-      `${TMDB_API_URL}/movie/${movie.id}/videos?api_key=${import.meta.env.VITE_TMDB_API_KEY}`,
+      `${TMDB_API_URL}/${movie.mediaType === "tv" ? "tv" : "movie"}/${movie.id}/videos?api_key=${import.meta.env.VITE_TMDB_API_KEY}`,
       tmdbOptions
     );
 
@@ -260,6 +302,10 @@ const playMovie = async (movie) => {
   }
 };
 const playHero = async () => {
+  if (heroMovie?.id) {
+    await playMovie({ ...heroMovie, mediaType: heroMovie.mediaType || "movie" });
+    return;
+  }
   try {
     const response = await fetch(
       `${TMDB_API_URL}/tv/66732/videos?api_key=${import.meta.env.VITE_TMDB_API_KEY}`,
@@ -289,6 +335,10 @@ const playHero = async () => {
 };
 
 const openHeroDetails = async () => {
+  if (heroMovie?.id) {
+    setSelectedMovie(heroMovie);
+    return;
+  }
   try {
     const response = await fetch(
       `${TMDB_API_URL}/tv/66732?api_key=${import.meta.env.VITE_TMDB_API_KEY}`,
@@ -321,426 +371,192 @@ const openHeroDetails = async () => {
   if (watchMovie) {
     return (
       <div className="watch-page">
-
-        <button
-          className="back-btn"
-          onClick={() => setWatchMovie(null)}
-        >
-          ← Back
-        </button>
-
+        <button className="back-btn" onClick={() => setWatchMovie(null)}>← Back</button>
         <h1>{watchMovie.title}</h1>
-
-        <p className="watch-subtitle">
-          Official Trailer
-        </p>
-
+        <p className="watch-subtitle">Official Trailer</p>
         <div className="video-container">
-          <iframe
-            src={`https://www.youtube.com/embed/${watchMovie.trailer}?autoplay=1`}
-            title={`${watchMovie.title} trailer`}
-            allow="autoplay; encrypted-media; picture-in-picture"
-            allowFullScreen
-          ></iframe>
+          {watchMovie.trailer ? (
+            <iframe
+              src={`https://www.youtube.com/embed/${watchMovie.trailer}?autoplay=1`}
+              title={`${watchMovie.title} trailer`}
+              allow="autoplay; encrypted-media; picture-in-picture"
+              allowFullScreen
+            />
+          ) : (
+            <p className="no-results">Trailer unavailable for this title.</p>
+          )}
         </div>
-
         <div className="watch-info">
           <h2>{watchMovie.title}</h2>
-
-          <p>
-            {watchMovie.year} • {watchMovie.genre} • ⭐{" "}
-            {watchMovie.rating}
-          </p>
-
+          <p>{watchMovie.year} • {watchMovie.genre} • ⭐ {watchMovie.rating}</p>
           <p>{watchMovie.description}</p>
         </div>
-
       </div>
     );
   }
 
-  // MOVIE DETAILS
+  // DETAILS PAGE
   if (selectedMovie) {
     return (
       <div className="details-page">
-
-        <button
-          className="back-btn"
-          onClick={() => setSelectedMovie(null)}
-        >
-          ← Back
-        </button>
-
+        <button className="back-btn" onClick={() => setSelectedMovie(null)}>← Back</button>
         <div className="details-content">
-
-          <img
-            className="details-poster"
-            src={selectedMovie.image}
-            alt={selectedMovie.title}
-          />
-
+          <img className="details-poster" src={selectedMovie.image} alt={selectedMovie.title} />
           <div className="details-info">
-
-            <p className="details-label">
-  {selectedMovie?.mediaType === "tv" ? "TV SHOW" : "MOVIE"}
-</p>
-
+            <p className="details-label">{selectedMovie.mediaType === "tv" ? "TV SHOW" : "MOVIE"}</p>
             <h1>{selectedMovie.title}</h1>
-
             <div className="movie-meta">
-              <span>{selectedMovie.year}</span>
-              <span>•</span>
-              <span>{selectedMovie.genre}</span>
-              <span>•</span>
-              <span>⭐ {selectedMovie.rating}</span>
+              <span>{selectedMovie.year}</span><span>•</span><span>{selectedMovie.genre}</span><span>•</span><span>⭐ {selectedMovie.rating}</span>
             </div>
-
-            <p className="details-description">
-              {selectedMovie.description}
-            </p>
-
+            <p className="details-description">{selectedMovie.description}</p>
             <div className="buttons">
-
-              <button
-                className="play-btn"
-                onClick={() => playMovie(selectedMovie)}
-              >
-                ▶ Play Trailer
-              </button>
-
+              <button className="play-btn" onClick={() => playMovie(selectedMovie)}>▶ Play Trailer</button>
               {isInMyList(selectedMovie) ? (
-                <button
-                  className="info-btn"
-                  onClick={() =>
-                    removeFromMyList(selectedMovie)
-                  }
-                >
-                  ✓ Added
-                </button>
+                <button className="info-btn" onClick={() => removeFromMyList(selectedMovie)}>✓ Added</button>
               ) : (
-                <button
-                  className="info-btn"
-                  onClick={() =>
-                    addToMyList(selectedMovie)
-                  }
-                >
-                  + My List
-                </button>
+                <button className="info-btn" onClick={() => addToMyList(selectedMovie)}>+ Add to My List</button>
               )}
-
             </div>
-
           </div>
-
         </div>
       </div>
     );
   }
 
-  // MY LIST PAGE
-  if (showMyList) {
-    return (
-      <div className="app">
+  const currentPath = location.pathname;
+  const isHomePage = currentPath === "/";
+  const isMoviesPage = currentPath === "/movies";
+  const isTVPage = currentPath === "/tv-shows";
+  const isMyListPage = currentPath === "/my-list";
 
-        <nav className="navbar">
-
-          <h1 className="logo">NETFLIX</h1>
-
-          <div className="nav-links">
-
-            <span onClick={() => setShowMyList(false)}>
-              Home
-            </span>
-
-            <span
-              onClick={() =>
-                document
-                .getElementById("movies-section")
-                ?.scrollIntoView({ behavior: "smooth" })
-  }
->
-  Movies
-</span>
-            <span
-  onClick={() =>
-    document.getElementById("tv-section")?.scrollIntoView({
-      behavior: "smooth",
-    })
-  }
->
-  TV Shows
-</span>
-
-            <span>
-              My List ({myList.length})
-            </span>
-
+  const renderMovieCards = (items, grid = false) => (
+    <div className={grid ? "tv-show-grid" : "movie-row"}>
+      {items.map((movie) => (
+        <div className="movie-card" key={`${movie.mediaType || "movie"}-${movie.id ?? movie.title}`} onClick={() => setSelectedMovie(movie)}>
+          <img src={movie.image} alt={movie.title} />
+          <div className="movie-info">
+            <h3>{movie.title}</h3>
+            <p>{movie.year} • {movie.genre} • ⭐ {movie.rating}</p>
           </div>
+        </div>
+      ))}
+    </div>
+  );
 
-        </nav>
-
-        <section className="movie-section my-list-page">
-
-          <h2>❤️ My List</h2>
-
-          {myList.length === 0 ? (
-            <p className="no-results">
-              Your list is empty. Add some movies! 🎬
-            </p>
-          ) : (
-            <div className="movie-row">
-
-              {myList.map((movie) => (
-                <div
-                  className="movie-card"
-                  key={movie.title}
-                  onClick={() => setSelectedMovie(movie)}
-                >
-                  <img
-                    src={movie.image}
-                    alt={movie.title}
-                  />
-
-                  <div className="movie-info">
-
-                    <h3>{movie.title}</h3>
-
-                    <p>
-                      {movie.year} • {movie.genre} • ⭐{" "}
-                      {movie.rating}
-                    </p>
-
-                  </div>
-
-                </div>
-              ))}
-
-            </div>
-          )}
-
-        </section>
-
-      </div>
-    );
-  }
-
-  // HOME PAGE
   return (
     <div className="app">
-
       <nav className="navbar">
-
-        <h1 className="logo">NETFLIX</h1>
-
+        <Link className="logo" to="/" onClick={() => setSearch("")}>MINI NETFLIX</Link>
         <div className="nav-links">
-          <span>Home</span>
-          <span
-  onClick={() =>
-    document.getElementById("movies-section")?.scrollIntoView({
-      behavior: "smooth",
-    })
-  }
->
-  Movies
-</span>
-          <span
-  onClick={() =>
-    document.getElementById("tv-section")?.scrollIntoView({
-      behavior: "smooth",
-    })
-  }
->
-  TV Shows
-</span>
-
-          <span onClick={() => setShowMyList(true)}>
-            My List ({myList.length})
-          </span>
+          <span onClick={() => { setSearch(""); navigate("/"); }}>Home</span>
+          <span onClick={() => { setSearch(""); navigate("/movies"); }}>Movies</span>
+          <span onClick={() => { setSearch(""); navigate("/tv-shows"); }}>TV Shows</span>
+          <span onClick={() => { setSearch(""); navigate("/my-list"); }}>My List ({myList.length})</span>
         </div>
-
         <input
           type="text"
           placeholder="Search movies..."
           className="search"
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            if (e.target.value.trim()) navigate("/movies");
+          }}
         />
-
       </nav>
 
-      <section
-  className="hero"
-  style={{
-    backgroundImage: heroMovie?.backdrop
-      ? `linear-gradient(
-          to right,
-          rgba(0, 0, 0, 0.95) 0%,
-          rgba(0, 0, 0, 0.75) 35%,
-          rgba(0, 0, 0, 0.25) 75%,
-          rgba(0, 0, 0, 0.9) 100%
-        ), url("${heroMovie.backdrop}")`
-      : undefined,
-  }}
->
-
-  <div className="hero-content">
-
-    <p className="featured">
-      NETFLIX ORIGINAL
-    </p>
-
-    <h2>{heroMovie?.title || "Stranger Things"}</h2>
-
-    <div className="hero-meta">
-      <span>{heroMovie?.year || "2022"}</span>
-      <span>•</span>
-      <span>{heroMovie?.genre || "Drama, Sci-Fi"}</span>
-      <span>•</span>
-    </div>
-
-     <p className="description">
-       {heroMovie?.description ||
-         "Discover amazing movies and stories."}
-    </p>
-
-    <div className="buttons">
-
-      <button className="play-btn" onClick={playHero}>
-        ▶ Play
-      </button>
-
-      <button className="info-btn" onClick={openHeroDetails}>
-        ⓘ More Info
-      </button>
-
-    </div>
-
-  </div>
-
-</section>
-
-     <section id="movies-section" className="movie-section">
-      {loading && (
-  <div className="loading-message">
-    Loading...
-  </div>
-)}
-
-{error && (
-  <div className="error-message">
-    {error}
-  </div>
-)}
-
-  {search ? (
-    <>
-      <h2>Search Results for "{search}"</h2>
-
-      {searchResults.length === 0 ? (
-        <p className="no-results">
-          No movies found 😕
-        </p>
-      ) : (
-        <div className="movie-row">
-          {searchResults.map((movie) => (
-            <div
-              className="movie-card"
-              key={movie.title}
-              onClick={() => setSelectedMovie(movie)}
-            >
-              <img
-                src={movie.image}
-                alt={movie.title}
-              />
-
-              <div className="movie-info">
-                <h3>{movie.title}</h3>
-
-                <p>
-                  {movie.year} • {movie.genre} • ⭐ {movie.rating}
-                </p>
+      {search.trim() ? (
+        <section className="movie-section">
+          <h2>Search Results for "{search}"</h2>
+          {searchResults.length === 0 ? (
+            <p className="no-results">No movies found 😕</p>
+          ) : renderMovieCards(searchResults)}
+        </section>
+      ) : isHomePage ? (
+        <>
+          <section className="hero" style={{
+            backgroundImage: heroMovie?.backdrop
+              ? `linear-gradient(to right, rgba(0, 0, 0, 0.95) 0%, rgba(0, 0, 0, 0.75) 35%, rgba(0, 0, 0, 0.25) 75%, rgba(0, 0, 0, 0.9) 100%), url("${heroMovie.backdrop}")`
+              : undefined,
+          }}>
+            <div className="hero-content">
+              <p className="featured">MINI NETFLIX FEATURED</p>
+              <h2>{heroMovie?.title || "Stranger Things"}</h2>
+              <div className="hero-meta"><span>{heroMovie?.year || "2022"}</span><span>•</span><span>{heroMovie?.genre || "Drama, Sci-Fi"}</span></div>
+              <p className="description">{heroMovie?.description || "Discover amazing movies and stories."}</p>
+              <div className="buttons">
+                <button className="play-btn" onClick={playHero}>▶ Play</button>
+                <button className="info-btn" onClick={openHeroDetails}>ⓘ More Info</button>
               </div>
             </div>
-          ))}
-        </div>
-      )}
-    </>
-  ) : (
-    <>
-      {[
-        "Trending Now",
-        "Popular Movies",
-        "Action Movies",
-        "Sci-Fi Movies",
-      ].map((category) => {
-
-        const categoryMovies = movies.filter(
-          (movie) => movie.category === category
-        );
-
-        return (
-          <div className="category-row" key={category}>
-
-            <h2>{category}</h2>
-
-            <div className="movie-row">
-              {categoryMovies.map((movie) => (
+          </section>
+          <section className="movie-section">
+            {loading && <div className="loading-message">Loading...</div>}
+            {error && <div className="error-message">{error}</div>}
+            <h2>Trending Now</h2>
+            {renderMovieCards(movies.filter((movie) => movie.category === "Trending Now"))}
+            <h2>Popular Movies</h2>
+            {renderMovieCards(movies.filter((movie) => movie.category === "Popular Movies"))}
+            <h2>Action Movies</h2>
+            {renderMovieCards(movies.filter((movie) => movie.category === "Action Movies"))}
+            <h2>Sci-Fi Movies</h2>
+            {renderMovieCards(movies.filter((movie) => movie.category === "Sci-Fi Movies"))}
+            <h2>Popular TV Shows</h2>
+            {renderMovieCards(tvShows.map((show) => ({ ...show, mediaType: "tv" })))}
+          </section>
+        </>
+      ) : isMoviesPage ? (
+        <section className="movie-section">
+          <h1>Movies</h1>
+          {loading && <div className="loading-message">Loading...</div>}
+          {error && <div className="error-message">{error}</div>}
+          {["Trending Now", "Popular Movies", "Action Movies", "Sci-Fi Movies"].map((category) => {
+            const categoryMovies = movies.filter((movie) => movie.category === category);
+            return (
+              <div className="category-row" key={category}>
+                <h2>{category}</h2>
+                {categoryMovies.length ? renderMovieCards(categoryMovies) : <p className="no-results">No movies available.</p>}
+              </div>
+            );
+          })}
+        </section>
+      ) : isTVPage ? (
+        <section className="movie-section tv-shows-page">
+          <h1>TV Shows</h1>
+          <h2>Popular TV Shows</h2>
+          {loading && <div className="loading-message">Loading TV shows...</div>}
+          {error && <div className="error-message">{error}</div>}
+          {!loading && tvShows.length === 0 ? (
+            <p className="no-results">No TV shows available right now.</p>
+          ) : (
+            <div className="tv-show-grid">
+              {tvShows.map((show) => (
                 <div
                   className="movie-card"
-                  key={movie.title}
-                  onClick={() => setSelectedMovie(movie)}
+                  key={`tv-${show.id}`}
+                  onClick={() => setSelectedMovie({ ...show, mediaType: "tv" })}
                 >
-                  <img
-                    src={movie.image}
-                    alt={movie.title}
-                  />
-
+                  <img src={show.image} alt={show.title} loading="lazy" />
                   <div className="movie-info">
-                    <h3>{movie.title}</h3>
-
-                    <p>
-                      {movie.year} • {movie.genre} • ⭐{" "}
-                      {movie.rating}
-                    </p>
+                    <h3>{show.title}</h3>
+                    <p>{show.year} • TV Show • ⭐ {show.rating}</p>
                   </div>
                 </div>
               ))}
             </div>
-          </div>
-        );
-      })}
-    </>
-  )}
-{/* TV SHOWS SECTION */}
-<div id="tv-section" className="category-row">
-  <h2>Popular TV Shows</h2>
-
-  <div className="movie-row">
-    {tvShows.map((show) => (
-      <div
-        className="movie-card"
-        key={show.id}
-        onClick={() => setSelectedMovie(show)}
-      >
-        <img
-          src={show.image}
-          alt={show.title}
-        />
-
-        <div className="movie-info">
-          <h3>{show.title}</h3>
-
-          <p>
-            {show.year} • {show.genre} • ⭐ {show.rating}
-          </p>
-        </div>
-      </div>
-    ))}
-  </div>
-</div>
-
-</section>
-
+          )}
+        </section>
+      ) : isMyListPage ? (
+        <section className="movie-section my-list-page">
+          <h1>❤️ My List</h1>
+          {myList.length === 0 ? <p className="no-results">Your list is empty. Add some movies! 🎬</p> : renderMovieCards(myList)}
+        </section>
+      ) : (
+        <section className="movie-section">
+          <h1>Page not found</h1>
+          <Link to="/">Return Home</Link>
+        </section>
+      )}
     </div>
   );
 }
