@@ -90,9 +90,22 @@ Set environment variables in Vercel Project Settings and redeploy after changes.
 Vite exposes variables prefixed with `VITE_` to browser-side code. Do not put passwords, private tokens, or server-only secrets in these variables. Keep your `.env` file out of Git.
 
 ## Screenshots
+## Screenshots
 
-Add screenshots of the home page, search, details page, and My List here to help recruiters quickly review the project.
+### Home Page
+![Mini Netflix Home](public/screenshots/home.png)
 
+### Movies
+![Movie Categories](public/screenshots/movies.png)
+
+### TV shows
+![TV Shows Categories](<public/Screenshots/TV Shows.png>)
+
+### Movie Details
+![Movie Details](public/screenshots/details.png)
+
+### MY LIST
+![List View](<public/Screenshots/My List.png>)
 ## Credits
 
 Movie and TV metadata and images are provided by [The Movie Database (TMDB)](https://www.themoviedb.org/).
